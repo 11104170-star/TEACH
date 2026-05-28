@@ -162,7 +162,7 @@ def protractor_svg(degrees: int, size: int = 360) -> str:
     cy = height * 0.82
     radius = width * 0.39
     angle = max(0, min(180, degrees))
-    rad = math.radians(angle)
+    rad = math.radians(180 - angle)
     arm_x = cx + math.cos(rad) * radius
     arm_y = cy - math.sin(rad) * radius
     arc_x = cx + math.cos(rad) * (radius * 0.38)
@@ -171,7 +171,7 @@ def protractor_svg(degrees: int, size: int = 360) -> str:
     ticks = []
     labels = []
     for value in range(0, 181, 5):
-        tick_rad = math.radians(value)
+        tick_rad = math.radians(180 - value)
         outer_x = cx + math.cos(tick_rad) * radius
         outer_y = cy - math.sin(tick_rad) * radius
         inner_length = radius - (17 if value % 10 == 0 else 9)
@@ -203,8 +203,8 @@ def protractor_svg(degrees: int, size: int = 360) -> str:
         {''.join(labels)}
         <line x1="{cx - radius - 10:.1f}" y1="{cy:.1f}" x2="{cx + radius + 10:.1f}" y2="{cy:.1f}"
               stroke="#273f49" stroke-width="4" stroke-linecap="round" />
-        <path d="M {cx:.1f} {cy:.1f} L {cx + radius * 0.38:.1f} {cy:.1f}
-                 A {radius * 0.38:.1f} {radius * 0.38:.1f} 0 0 0 {arc_x:.1f} {arc_y:.1f} Z"
+        <path d="M {cx:.1f} {cy:.1f} L {cx - radius * 0.38:.1f} {cy:.1f}
+                 A {radius * 0.38:.1f} {radius * 0.38:.1f} 0 0 1 {arc_x:.1f} {arc_y:.1f} Z"
               fill="#f2a65a" opacity="0.35" />
         <line x1="{cx:.1f}" y1="{cy:.1f}" x2="{arm_x:.1f}" y2="{arm_y:.1f}"
               stroke="#d85c3a" stroke-width="6" stroke-linecap="round" />
@@ -276,7 +276,7 @@ def interactive_clock_html() -> str:
         <div class="toolbar">
             <div>
                 <div class="readout" id="clockReadout">3:20</div>
-                <div class="hint">拖拉紅色長針改分鐘，拖拉藍色短針改小時。</div>
+                <div class="hint">拖拉紅色長針改分鐘；分針跨過 12 時，短針會自動進位或退位。</div>
             </div>
             <button id="resetClock" type="button">回到 3:20</button>
         </div>
@@ -299,6 +299,7 @@ def interactive_clock_html() -> str:
         let hour = 3;
         let minute = 20;
         let dragging = null;
+        let lastMinute = minute;
 
         function point(angle, length) {
             const rad = (angle - 90) * Math.PI / 180;
@@ -373,6 +374,9 @@ def interactive_clock_html() -> str:
 
         function startDrag(kind, event) {
             dragging = kind;
+            if (kind === "minute") {
+                lastMinute = minute;
+            }
             svg.setPointerCapture(event.pointerId);
             event.preventDefault();
         }
@@ -385,18 +389,33 @@ def interactive_clock_html() -> str:
             if (!dragging) return;
             const angle = angleFromEvent(event);
             if (dragging === "minute") {
-                minute = Math.round(angle / 6) % 60;
+                const nextMinute = Math.round(angle / 6) % 60;
+                const diff = nextMinute - lastMinute;
+                if (diff < -30) {
+                    hour = (hour + 1) % 12;
+                } else if (diff > 30) {
+                    hour = (hour + 11) % 12;
+                }
+                minute = nextMinute;
+                lastMinute = nextMinute;
             } else {
                 hour = Math.round(angle / 30) % 12;
             }
             updateClock();
             event.preventDefault();
         });
-        svg.addEventListener("pointerup", () => dragging = null);
-        svg.addEventListener("pointercancel", () => dragging = null);
+        svg.addEventListener("pointerup", () => {
+            dragging = null;
+            lastMinute = minute;
+        });
+        svg.addEventListener("pointercancel", () => {
+            dragging = null;
+            lastMinute = minute;
+        });
         document.getElementById("resetClock").addEventListener("click", () => {
             hour = 3;
             minute = 20;
+            lastMinute = minute;
             updateClock();
         });
 
@@ -467,7 +486,7 @@ def interactive_protractor_html() -> str:
         <div class="toolbar">
             <div>
                 <div class="readout"><span id="angleReadout">65</span>°，<span id="angleType">銳角</span></div>
-                <div class="hint">拖拉紅色圓點或紅色邊，角度會即時改變。</div>
+                <div class="hint">0° 在左邊。拖拉紅色圓點或紅色邊，角度會即時改變。</div>
             </div>
             <button id="resetAngle" type="button">回到 65°</button>
         </div>
@@ -493,7 +512,7 @@ def interactive_protractor_html() -> str:
         let dragging = false;
 
         function point(angle, length) {
-            const rad = angle * Math.PI / 180;
+            const rad = (180 - angle) * Math.PI / 180;
             return {
                 x: cx + Math.cos(rad) * length,
                 y: cy - Math.sin(rad) * length
@@ -506,6 +525,7 @@ def interactive_protractor_html() -> str:
             pt.y = event.clientY;
             const local = pt.matrixTransform(svg.getScreenCTM().inverse());
             let angle = Math.atan2(cy - local.y, local.x - cx) * 180 / Math.PI;
+            angle = 180 - angle;
             return Math.max(0, Math.min(180, Math.round(angle)));
         }
 
@@ -526,7 +546,7 @@ def interactive_protractor_html() -> str:
             document.getElementById("angleHandle").setAttribute("cy", arm.y);
             document.getElementById("angleWedge").setAttribute(
                 "d",
-                `M ${cx} ${cy} L ${cx + arcRadius} ${cy} A ${arcRadius} ${arcRadius} 0 ${largeArc} 0 ${arc.x} ${arc.y} Z`
+                `M ${cx} ${cy} L ${cx - arcRadius} ${cy} A ${arcRadius} ${arcRadius} 0 ${largeArc} 1 ${arc.x} ${arc.y} Z`
             );
             document.getElementById("angleReadout").textContent = degrees;
             document.getElementById("angleType").textContent = angleType(degrees);
@@ -586,6 +606,234 @@ def interactive_protractor_html() -> str:
 
         makeProtractor();
         updateAngle();
+    </script>
+    """
+
+
+def interactive_full_circle_html() -> str:
+    return """
+    <style>
+        body {
+            margin: 0;
+            font-family: "Noto Sans TC", "Microsoft JhengHei", Arial, sans-serif;
+            color: #233f4a;
+            background: transparent;
+        }
+        .panel {
+            border: 1px solid #d6e1e7;
+            border-radius: 8px;
+            background: #ffffff;
+            padding: 14px;
+        }
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+        .readout {
+            font-size: 32px;
+            font-weight: 800;
+            color: #24495a;
+        }
+        .hint {
+            color: #607882;
+            font-size: 14px;
+            line-height: 1.45;
+        }
+        .preset-buttons {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+        .drag-target {
+            cursor: grab;
+            touch-action: none;
+        }
+        .drag-target:active {
+            cursor: grabbing;
+        }
+        svg {
+            width: 100%;
+            max-width: 430px;
+            display: block;
+            margin: 0 auto;
+            user-select: none;
+        }
+        button {
+            border: 1px solid #b9ccd5;
+            border-radius: 8px;
+            background: #f7fbfc;
+            color: #233f4a;
+            padding: 8px 10px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+    </style>
+    <div class="panel">
+        <div class="toolbar">
+            <div>
+                <div class="readout"><span id="fullReadout">120</span>°，<span id="fullType">鈍角</span></div>
+                <div class="hint">0° 在左邊，順著上方、右邊、下方拖一圈就是 360°。</div>
+            </div>
+            <div class="preset-buttons">
+                <button data-angle="0" type="button">0°</button>
+                <button data-angle="90" type="button">90°</button>
+                <button data-angle="180" type="button">180°</button>
+                <button data-angle="270" type="button">270°</button>
+                <button data-angle="360" type="button">360°</button>
+            </div>
+        </div>
+        <svg id="fullSvg" viewBox="0 0 420 420" aria-label="可拖拉 360 度角">
+            <circle cx="210" cy="210" r="166" fill="#f7fbfc" stroke="#2f5f72" stroke-width="6"></circle>
+            <circle cx="210" cy="210" r="138" fill="#ffffff" stroke="#d7e4ea" stroke-width="2"></circle>
+            <g id="fullTicks"></g>
+            <path id="fullWedge" fill="#f2a65a" opacity="0.35"></path>
+            <line x1="210" y1="210" x2="44" y2="210" stroke="#24495a" stroke-width="5" stroke-linecap="round"></line>
+            <line id="fullArm" class="drag-target" x1="210" y1="210" x2="127" y2="66" stroke="#d85c3a" stroke-width="8" stroke-linecap="round"></line>
+            <circle cx="210" cy="210" r="9" fill="#24495a"></circle>
+            <circle id="fullHandle" class="drag-target" cx="127" cy="66" r="13" fill="#d85c3a"></circle>
+        </svg>
+    </div>
+    <script>
+        const svg = document.getElementById("fullSvg");
+        const cx = 210;
+        const cy = 210;
+        const radius = 166;
+        const armLength = 150;
+        const wedgeRadius = 100;
+        let degrees = 120;
+        let dragging = false;
+
+        function point(angle, length) {
+            const rad = (180 - angle) * Math.PI / 180;
+            return {
+                x: cx + Math.cos(rad) * length,
+                y: cy - Math.sin(rad) * length
+            };
+        }
+
+        function angleFromEvent(event) {
+            const pt = svg.createSVGPoint();
+            pt.x = event.clientX;
+            pt.y = event.clientY;
+            const local = pt.matrixTransform(svg.getScreenCTM().inverse());
+            let raw = Math.atan2(cy - local.y, local.x - cx) * 180 / Math.PI;
+            if (raw < 0) raw += 360;
+            return Math.round((180 - raw + 360) % 360);
+        }
+
+        function angleType(angle) {
+            if (angle === 0) return "零角";
+            if (angle < 90) return "銳角";
+            if (angle === 90) return "直角";
+            if (angle < 180) return "鈍角";
+            if (angle === 180) return "平角";
+            if (angle < 360) return "優角";
+            return "周角";
+        }
+
+        function wedgePath(angle) {
+            const startX = cx - wedgeRadius;
+            const startY = cy;
+            if (angle >= 360) {
+                return `M ${cx} ${cy} m ${-wedgeRadius} 0 ` +
+                    `a ${wedgeRadius} ${wedgeRadius} 0 1 1 ${wedgeRadius * 2} 0 ` +
+                    `a ${wedgeRadius} ${wedgeRadius} 0 1 1 ${-wedgeRadius * 2} 0`;
+            }
+            if (angle <= 0) {
+                return `M ${cx} ${cy} L ${startX} ${startY} Z`;
+            }
+            const end = point(angle, wedgeRadius);
+            const largeArc = angle > 180 ? 1 : 0;
+            return `M ${cx} ${cy} L ${startX} ${startY} A ${wedgeRadius} ${wedgeRadius} 0 ${largeArc} 1 ${end.x} ${end.y} Z`;
+        }
+
+        function updateFullCircle() {
+            const visibleAngle = degrees >= 360 ? 360 : degrees;
+            const arm = point(visibleAngle, armLength);
+            document.getElementById("fullArm").setAttribute("x2", arm.x);
+            document.getElementById("fullArm").setAttribute("y2", arm.y);
+            document.getElementById("fullHandle").setAttribute("cx", arm.x);
+            document.getElementById("fullHandle").setAttribute("cy", arm.y);
+            document.getElementById("fullWedge").setAttribute("d", wedgePath(visibleAngle));
+            document.getElementById("fullReadout").textContent = visibleAngle;
+            document.getElementById("fullType").textContent = angleType(visibleAngle);
+        }
+
+        function makeCircleFace() {
+            const ticks = document.getElementById("fullTicks");
+            for (let value = 0; value < 360; value += 5) {
+                const outer = point(value, radius);
+                const inner = point(value, value % 30 === 0 ? radius - 22 : radius - 11);
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", inner.x);
+                line.setAttribute("y1", inner.y);
+                line.setAttribute("x2", outer.x);
+                line.setAttribute("y2", outer.y);
+                line.setAttribute("stroke", value % 30 === 0 ? "#294a56" : "#8aa0a8");
+                line.setAttribute("stroke-width", value % 30 === 0 ? "2" : "1");
+                line.setAttribute("stroke-linecap", "round");
+                ticks.appendChild(line);
+            }
+
+            const labels = [
+                [0, "0/360"],
+                [90, "90"],
+                [180, "180"],
+                [270, "270"]
+            ];
+            for (const [angle, label] of labels) {
+                const labelPoint = point(angle, radius - 48);
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", labelPoint.x);
+                text.setAttribute("y", labelPoint.y + 5);
+                text.setAttribute("text-anchor", "middle");
+                text.setAttribute("font-size", "15");
+                text.setAttribute("font-family", "Arial");
+                text.setAttribute("font-weight", "800");
+                text.setAttribute("fill", "#294a56");
+                text.textContent = label;
+                ticks.appendChild(text);
+            }
+        }
+
+        function startDrag(event) {
+            dragging = true;
+            svg.setPointerCapture(event.pointerId);
+            event.preventDefault();
+        }
+
+        document.getElementById("fullArm").addEventListener("pointerdown", startDrag);
+        document.getElementById("fullHandle").addEventListener("pointerdown", startDrag);
+        svg.addEventListener("pointermove", (event) => {
+            if (!dragging) return;
+            const next = angleFromEvent(event);
+            if (degrees > 300 && next < 20) {
+                degrees = 360;
+            } else if (degrees < 60 && next > 340) {
+                degrees = 0;
+            } else {
+                degrees = next;
+            }
+            updateFullCircle();
+            event.preventDefault();
+        });
+        svg.addEventListener("pointerup", () => dragging = false);
+        svg.addEventListener("pointercancel", () => dragging = false);
+
+        for (const button of document.querySelectorAll("[data-angle]")) {
+            button.addEventListener("click", () => {
+                degrees = Number(button.dataset.angle);
+                updateFullCircle();
+            });
+        }
+
+        makeCircleFace();
+        updateFullCircle();
     </script>
     """
 
@@ -684,7 +932,7 @@ with angle_tab:
     with lesson_col:
         with st.container(border=True):
             st.markdown("#### 角度怎麼看")
-            st.write("直接拖拉紅色邊或紅色圓點，角度會即時改變。")
+            st.write("這個半圓量角器的 0° 在左邊，往上方拖會慢慢變大。")
             st.markdown(
                 """
                 <div class="formula">
@@ -697,6 +945,27 @@ with angle_tab:
                 unsafe_allow_html=True,
             )
             st.info("拖到 90° 時是直角；拖到 180° 時是平角。")
+
+    st.subheader("360° 圓形角度")
+    full_col, full_lesson_col = st.columns([1.1, 1])
+    with full_col:
+        st.iframe(interactive_full_circle_html(), height=540)
+
+    with full_lesson_col:
+        with st.container(border=True):
+            st.markdown("#### 超過 180° 的角")
+            st.write("這個圓形角度教具可以從 0° 拖到 360°。")
+            st.markdown(
+                """
+                <div class="formula">
+                    <span class="chip">180°：平角</span>
+                    <span class="chip">大於 180°：優角</span>
+                    <span class="chip">360°：周角</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.info("如果拖到 360°，代表剛好轉完整一圈。")
 
     st.subheader("角度加減")
     add_col, result_col = st.columns([1.05, 1])
