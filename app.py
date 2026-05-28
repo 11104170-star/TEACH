@@ -215,6 +215,381 @@ def protractor_svg(degrees: int, size: int = 360) -> str:
     """
 
 
+def interactive_clock_html() -> str:
+    return """
+    <style>
+        body {
+            margin: 0;
+            font-family: "Noto Sans TC", "Microsoft JhengHei", Arial, sans-serif;
+            color: #233f4a;
+            background: transparent;
+        }
+        .panel {
+            border: 1px solid #d6e1e7;
+            border-radius: 8px;
+            background: #ffffff;
+            padding: 14px;
+        }
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+        .readout {
+            font-size: 32px;
+            font-weight: 800;
+            color: #24495a;
+        }
+        .hint {
+            color: #607882;
+            font-size: 14px;
+            line-height: 1.45;
+        }
+        .drag-target {
+            cursor: grab;
+            touch-action: none;
+        }
+        .drag-target:active {
+            cursor: grabbing;
+        }
+        svg {
+            width: 100%;
+            max-width: 390px;
+            display: block;
+            margin: 0 auto;
+            user-select: none;
+        }
+        button {
+            border: 1px solid #b9ccd5;
+            border-radius: 8px;
+            background: #f7fbfc;
+            color: #233f4a;
+            padding: 8px 10px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+    </style>
+    <div class="panel">
+        <div class="toolbar">
+            <div>
+                <div class="readout" id="clockReadout">3:20</div>
+                <div class="hint">拖拉紅色長針改分鐘，拖拉藍色短針改小時。</div>
+            </div>
+            <button id="resetClock" type="button">回到 3:20</button>
+        </div>
+        <svg id="clockSvg" viewBox="0 0 360 360" aria-label="可拖拉時鐘">
+            <circle cx="180" cy="180" r="162" fill="#fffdf8" stroke="#2f5f72" stroke-width="8"></circle>
+            <circle cx="180" cy="180" r="150" fill="#ffffff" stroke="#d5e3e8" stroke-width="2"></circle>
+            <g id="clockTicks"></g>
+            <g id="clockNumbers"></g>
+            <line id="hourHand" class="drag-target" x1="180" y1="180" x2="180" y2="104" stroke="#24495a" stroke-width="12" stroke-linecap="round"></line>
+            <line id="minuteHand" class="drag-target" x1="180" y1="180" x2="180" y2="66" stroke="#d85c3a" stroke-width="7" stroke-linecap="round"></line>
+            <circle cx="180" cy="180" r="10" fill="#24495a"></circle>
+            <circle id="hourHandle" class="drag-target" cx="180" cy="104" r="14" fill="#24495a" opacity="0.92"></circle>
+            <circle id="minuteHandle" class="drag-target" cx="180" cy="66" r="12" fill="#d85c3a" opacity="0.94"></circle>
+        </svg>
+    </div>
+    <script>
+        const svg = document.getElementById("clockSvg");
+        const cx = 180;
+        const cy = 180;
+        let hour = 3;
+        let minute = 20;
+        let dragging = null;
+
+        function point(angle, length) {
+            const rad = (angle - 90) * Math.PI / 180;
+            return {
+                x: cx + Math.cos(rad) * length,
+                y: cy + Math.sin(rad) * length
+            };
+        }
+
+        function angleFromEvent(event) {
+            const pt = svg.createSVGPoint();
+            pt.x = event.clientX;
+            pt.y = event.clientY;
+            const local = pt.matrixTransform(svg.getScreenCTM().inverse());
+            let deg = Math.atan2(local.y - cy, local.x - cx) * 180 / Math.PI + 90;
+            if (deg < 0) deg += 360;
+            return deg;
+        }
+
+        function displayHour() {
+            return hour === 0 ? 12 : hour;
+        }
+
+        function updateClock() {
+            const hourAngle = (hour + minute / 60) * 30;
+            const minuteAngle = minute * 6;
+            const hp = point(hourAngle, 78);
+            const mp = point(minuteAngle, 118);
+            document.getElementById("hourHand").setAttribute("x2", hp.x);
+            document.getElementById("hourHand").setAttribute("y2", hp.y);
+            document.getElementById("minuteHand").setAttribute("x2", mp.x);
+            document.getElementById("minuteHand").setAttribute("y2", mp.y);
+            document.getElementById("hourHandle").setAttribute("cx", hp.x);
+            document.getElementById("hourHandle").setAttribute("cy", hp.y);
+            document.getElementById("minuteHandle").setAttribute("cx", mp.x);
+            document.getElementById("minuteHandle").setAttribute("cy", mp.y);
+            document.getElementById("clockReadout").textContent =
+                `${displayHour()}:${String(minute).padStart(2, "0")}`;
+        }
+
+        function makeClockFace() {
+            const ticks = document.getElementById("clockTicks");
+            const numbers = document.getElementById("clockNumbers");
+            for (let value = 0; value < 60; value += 1) {
+                const angle = value * 6;
+                const outer = point(angle, 138);
+                const inner = point(angle, value % 5 === 0 ? 120 : 130);
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", inner.x);
+                line.setAttribute("y1", inner.y);
+                line.setAttribute("x2", outer.x);
+                line.setAttribute("y2", outer.y);
+                line.setAttribute("stroke", value % 5 === 0 ? "#263238" : "#94a8b1");
+                line.setAttribute("stroke-width", value % 5 === 0 ? "3" : "1");
+                line.setAttribute("stroke-linecap", "round");
+                ticks.appendChild(line);
+            }
+            for (let number = 1; number <= 12; number += 1) {
+                const p = point(number * 30, 102);
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", p.x);
+                text.setAttribute("y", p.y + 7);
+                text.setAttribute("text-anchor", "middle");
+                text.setAttribute("font-size", "20");
+                text.setAttribute("font-family", "Arial");
+                text.setAttribute("font-weight", "800");
+                text.setAttribute("fill", "#263238");
+                text.textContent = number;
+                numbers.appendChild(text);
+            }
+        }
+
+        function startDrag(kind, event) {
+            dragging = kind;
+            svg.setPointerCapture(event.pointerId);
+            event.preventDefault();
+        }
+
+        document.getElementById("minuteHand").addEventListener("pointerdown", (event) => startDrag("minute", event));
+        document.getElementById("minuteHandle").addEventListener("pointerdown", (event) => startDrag("minute", event));
+        document.getElementById("hourHand").addEventListener("pointerdown", (event) => startDrag("hour", event));
+        document.getElementById("hourHandle").addEventListener("pointerdown", (event) => startDrag("hour", event));
+        svg.addEventListener("pointermove", (event) => {
+            if (!dragging) return;
+            const angle = angleFromEvent(event);
+            if (dragging === "minute") {
+                minute = Math.round(angle / 6) % 60;
+            } else {
+                hour = Math.round(angle / 30) % 12;
+            }
+            updateClock();
+            event.preventDefault();
+        });
+        svg.addEventListener("pointerup", () => dragging = null);
+        svg.addEventListener("pointercancel", () => dragging = null);
+        document.getElementById("resetClock").addEventListener("click", () => {
+            hour = 3;
+            minute = 20;
+            updateClock();
+        });
+
+        makeClockFace();
+        updateClock();
+    </script>
+    """
+
+
+def interactive_protractor_html() -> str:
+    return """
+    <style>
+        body {
+            margin: 0;
+            font-family: "Noto Sans TC", "Microsoft JhengHei", Arial, sans-serif;
+            color: #233f4a;
+            background: transparent;
+        }
+        .panel {
+            border: 1px solid #d6e1e7;
+            border-radius: 8px;
+            background: #ffffff;
+            padding: 14px;
+        }
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+        .readout {
+            font-size: 32px;
+            font-weight: 800;
+            color: #24495a;
+        }
+        .hint {
+            color: #607882;
+            font-size: 14px;
+            line-height: 1.45;
+        }
+        .drag-target {
+            cursor: grab;
+            touch-action: none;
+        }
+        .drag-target:active {
+            cursor: grabbing;
+        }
+        svg {
+            width: 100%;
+            max-width: 430px;
+            display: block;
+            margin: 0 auto;
+            user-select: none;
+        }
+        button {
+            border: 1px solid #b9ccd5;
+            border-radius: 8px;
+            background: #f7fbfc;
+            color: #233f4a;
+            padding: 8px 10px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+    </style>
+    <div class="panel">
+        <div class="toolbar">
+            <div>
+                <div class="readout"><span id="angleReadout">65</span>°，<span id="angleType">銳角</span></div>
+                <div class="hint">拖拉紅色圓點或紅色邊，角度會即時改變。</div>
+            </div>
+            <button id="resetAngle" type="button">回到 65°</button>
+        </div>
+        <svg id="angleSvg" viewBox="0 0 420 270" aria-label="可拖拉量角器">
+            <path d="M 45 225 A 165 165 0 0 1 375 225" fill="#f7fbfc" stroke="#2f5f72" stroke-width="6"></path>
+            <path d="M 65 225 A 145 145 0 0 1 355 225" fill="none" stroke="#d7e4ea" stroke-width="2"></path>
+            <g id="angleTicks"></g>
+            <line x1="35" y1="225" x2="385" y2="225" stroke="#273f49" stroke-width="5" stroke-linecap="round"></line>
+            <path id="angleWedge" fill="#f2a65a" opacity="0.35"></path>
+            <line id="angleArm" class="drag-target" x1="210" y1="225" x2="280" y2="75" stroke="#d85c3a" stroke-width="8" stroke-linecap="round"></line>
+            <circle cx="210" cy="225" r="9" fill="#24495a"></circle>
+            <circle id="angleHandle" class="drag-target" cx="280" cy="75" r="13" fill="#d85c3a"></circle>
+        </svg>
+    </div>
+    <script>
+        const svg = document.getElementById("angleSvg");
+        const cx = 210;
+        const cy = 225;
+        const radius = 165;
+        const armLength = 154;
+        const arcRadius = 70;
+        let degrees = 65;
+        let dragging = false;
+
+        function point(angle, length) {
+            const rad = angle * Math.PI / 180;
+            return {
+                x: cx + Math.cos(rad) * length,
+                y: cy - Math.sin(rad) * length
+            };
+        }
+
+        function angleFromEvent(event) {
+            const pt = svg.createSVGPoint();
+            pt.x = event.clientX;
+            pt.y = event.clientY;
+            const local = pt.matrixTransform(svg.getScreenCTM().inverse());
+            let angle = Math.atan2(cy - local.y, local.x - cx) * 180 / Math.PI;
+            return Math.max(0, Math.min(180, Math.round(angle)));
+        }
+
+        function angleType(angle) {
+            if (angle < 90) return "銳角";
+            if (angle === 90) return "直角";
+            if (angle < 180) return "鈍角";
+            return "平角";
+        }
+
+        function updateAngle() {
+            const arm = point(degrees, armLength);
+            const arc = point(degrees, arcRadius);
+            const largeArc = degrees > 180 ? 1 : 0;
+            document.getElementById("angleArm").setAttribute("x2", arm.x);
+            document.getElementById("angleArm").setAttribute("y2", arm.y);
+            document.getElementById("angleHandle").setAttribute("cx", arm.x);
+            document.getElementById("angleHandle").setAttribute("cy", arm.y);
+            document.getElementById("angleWedge").setAttribute(
+                "d",
+                `M ${cx} ${cy} L ${cx + arcRadius} ${cy} A ${arcRadius} ${arcRadius} 0 ${largeArc} 0 ${arc.x} ${arc.y} Z`
+            );
+            document.getElementById("angleReadout").textContent = degrees;
+            document.getElementById("angleType").textContent = angleType(degrees);
+        }
+
+        function makeProtractor() {
+            const ticks = document.getElementById("angleTicks");
+            for (let value = 0; value <= 180; value += 5) {
+                const outer = point(value, radius);
+                const inner = point(value, value % 10 === 0 ? radius - 20 : radius - 10);
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", inner.x);
+                line.setAttribute("y1", inner.y);
+                line.setAttribute("x2", outer.x);
+                line.setAttribute("y2", outer.y);
+                line.setAttribute("stroke", value % 10 === 0 ? "#294a56" : "#8aa0a8");
+                line.setAttribute("stroke-width", value % 10 === 0 ? "2" : "1");
+                line.setAttribute("stroke-linecap", "round");
+                ticks.appendChild(line);
+
+                if (value % 30 === 0) {
+                    const labelPoint = point(value, radius - 45);
+                    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    text.setAttribute("x", labelPoint.x);
+                    text.setAttribute("y", labelPoint.y + 5);
+                    text.setAttribute("text-anchor", "middle");
+                    text.setAttribute("font-size", "14");
+                    text.setAttribute("font-family", "Arial");
+                    text.setAttribute("font-weight", "800");
+                    text.setAttribute("fill", "#294a56");
+                    text.textContent = value;
+                    ticks.appendChild(text);
+                }
+            }
+        }
+
+        function startDrag(event) {
+            dragging = true;
+            svg.setPointerCapture(event.pointerId);
+            event.preventDefault();
+        }
+
+        document.getElementById("angleArm").addEventListener("pointerdown", startDrag);
+        document.getElementById("angleHandle").addEventListener("pointerdown", startDrag);
+        svg.addEventListener("pointermove", (event) => {
+            if (!dragging) return;
+            degrees = angleFromEvent(event);
+            updateAngle();
+            event.preventDefault();
+        });
+        svg.addEventListener("pointerup", () => dragging = false);
+        svg.addEventListener("pointercancel", () => dragging = false);
+        document.getElementById("resetAngle").addEventListener("click", () => {
+            degrees = 65;
+            updateAngle();
+        });
+
+        makeProtractor();
+        updateAngle();
+    </script>
+    """
+
+
 def make_quiz() -> dict[str, int]:
     start_hour = random.randint(7, 15)
     start_minute = random.choice(list(range(0, 60, 5)))
@@ -254,34 +629,27 @@ st.markdown(
 time_tab, angle_tab, quiz_tab = st.tabs(["時間教室", "角度教室", "小測驗"])
 
 with time_tab:
-    st.subheader("讀時鐘")
-    clock_col, lesson_col = st.columns([1.05, 1])
+    st.subheader("拖拉時鐘")
+    clock_col, lesson_col = st.columns([1.08, 1])
     with clock_col:
-        with st.container(border=True):
-            hour = st.slider("小時", 1, 12, 3, 1)
-            minute = st.slider("分鐘", 0, 55, 20, 5)
-            render_svg(clock_svg(hour, minute), 330)
+        st.iframe(interactive_clock_html(), height=500)
 
     with lesson_col:
         with st.container(border=True):
             st.markdown("#### 指針怎麼看")
-            st.write("短針看小時，長針看分鐘。")
-            st.write("長針走一小格是 1 分鐘，走一大格是 5 分鐘。")
+            st.write("直接拖拉紅色長針，可以改變分鐘。")
+            st.write("直接拖拉藍色短針，可以改變小時。")
             st.markdown(
-                f"""
+                """
                 <div class="formula">
-                    這個鐘面是 <strong>{twelve_hour_label(hour, minute)}</strong><br>
-                    長針走到第 <strong>{minute // 5}</strong> 個大格，所以是 <strong>{minute}</strong> 分鐘。
+                    長針走一小格是 <strong>1 分鐘</strong>。<br>
+                    長針走一大格是 <strong>5 分鐘</strong>。<br>
+                    短針走一大格是 <strong>1 小時</strong>。
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
-            if minute == 0:
-                st.success("整點時，長針會指向 12。")
-            elif minute == 15:
-                st.success("15 分鐘也可以說成一刻鐘。")
-            elif minute == 30:
-                st.success("30 分鐘也可以說成半小時。")
+            st.info("拖一拖，再請學生說出現在是幾點幾分。")
 
     st.subheader("經過時間")
     start_col, result_col = st.columns([1.05, 1])
@@ -308,17 +676,15 @@ with time_tab:
             )
 
 with angle_tab:
-    st.subheader("認識角度")
-    angle_col, lesson_col = st.columns([1.08, 1])
+    st.subheader("拖拉量角器")
+    angle_col, lesson_col = st.columns([1.1, 1])
     with angle_col:
-        with st.container(border=True):
-            degrees = st.slider("角度", 0, 180, 65, 5)
-            render_svg(protractor_svg(degrees), 300)
+        st.iframe(interactive_protractor_html(), height=420)
 
     with lesson_col:
         with st.container(border=True):
-            st.metric("角的種類", angle_name(degrees))
-            st.write("角度越大，兩條邊張開得越寬。")
+            st.markdown("#### 角度怎麼看")
+            st.write("直接拖拉紅色邊或紅色圓點，角度會即時改變。")
             st.markdown(
                 """
                 <div class="formula">
@@ -330,10 +696,7 @@ with angle_tab:
                 """,
                 unsafe_allow_html=True,
             )
-            if degrees == 90:
-                st.success("這個角剛好像方格紙的角。")
-            elif degrees == 180:
-                st.success("兩條邊排成一直線，就是平角。")
+            st.info("拖到 90° 時是直角；拖到 180° 時是平角。")
 
     st.subheader("角度加減")
     add_col, result_col = st.columns([1.05, 1])
