@@ -113,6 +113,18 @@ def clock_svg(hour: int, minute: int, size: int = 320) -> str:
         rad = math.radians(angle - 90)
         return center + math.cos(rad) * length, center + math.sin(rad) * length
 
+    def hand_points(angle: float, length: float, base_width: float) -> str:
+        tip_x, tip_y = point(angle, length)
+        back_x, back_y = point(angle + 180, base_width * 0.85)
+        left_x, left_y = point(angle - 90, base_width)
+        right_x, right_y = point(angle + 90, base_width)
+        return (
+            f"{tip_x:.1f},{tip_y:.1f} "
+            f"{left_x:.1f},{left_y:.1f} "
+            f"{back_x:.1f},{back_y:.1f} "
+            f"{right_x:.1f},{right_y:.1f}"
+        )
+
     ticks = []
     for value in range(60):
         angle = value * 6
@@ -136,8 +148,8 @@ def clock_svg(hour: int, minute: int, size: int = 320) -> str:
             f'font-weight="700">{number}</text>'
         )
 
-    hour_x, hour_y = point(hour_angle, radius * 0.48)
-    minute_x, minute_y = point(minute_angle, radius * 0.72)
+    hour_hand = hand_points(hour_angle, radius * 0.5, 9)
+    minute_hand = hand_points(minute_angle, radius * 0.76, 6)
 
     return f"""
     <svg viewBox="0 0 {size} {size}" width="100%" height="100%" role="img" aria-label="時鐘">
@@ -145,8 +157,8 @@ def clock_svg(hour: int, minute: int, size: int = 320) -> str:
         <circle cx="{center}" cy="{center}" r="{radius + 4}" fill="#ffffff" stroke="#d5e3e8" stroke-width="2" />
         {''.join(ticks)}
         {''.join(numbers)}
-        <line x1="{center}" y1="{center}" x2="{hour_x:.1f}" y2="{hour_y:.1f}" stroke="#24495a" stroke-width="9" stroke-linecap="round" />
-        <line x1="{center}" y1="{center}" x2="{minute_x:.1f}" y2="{minute_y:.1f}" stroke="#d85c3a" stroke-width="5" stroke-linecap="round" />
+        <polygon points="{hour_hand}" fill="#24495a" />
+        <polygon points="{minute_hand}" fill="#d85c3a" />
         <circle cx="{center}" cy="{center}" r="9" fill="#24495a" />
         <text x="{center}" y="{size - 18}" text-anchor="middle" font-size="17" font-family="Arial" fill="#47606b" font-weight="700">
             {twelve_hour_label(hour, minute)}
@@ -267,6 +279,9 @@ def interactive_clock_html() -> str:
         .drag-target:active {
             cursor: grabbing;
         }
+        .clock-hand {
+            filter: drop-shadow(0 1px 1px rgba(35, 63, 74, 0.22));
+        }
         svg {
             width: 100%;
             max-width: 390px;
@@ -302,8 +317,8 @@ def interactive_clock_html() -> str:
             <circle cx="180" cy="180" r="150" fill="#ffffff" stroke="#d5e3e8" stroke-width="2"></circle>
             <g id="clockTicks"></g>
             <g id="clockNumbers"></g>
-            <line id="hourHand" class="drag-target" x1="180" y1="180" x2="180" y2="104" stroke="#24495a" stroke-width="12" stroke-linecap="round"></line>
-            <line id="minuteHand" class="drag-target" x1="180" y1="180" x2="180" y2="66" stroke="#d85c3a" stroke-width="7" stroke-linecap="round"></line>
+            <polygon id="hourHand" class="drag-target clock-hand" points="" fill="#24495a"></polygon>
+            <polygon id="minuteHand" class="drag-target clock-hand" points="" fill="#d85c3a"></polygon>
             <circle cx="180" cy="180" r="10" fill="#24495a"></circle>
             <circle id="hourHandle" class="drag-target" cx="180" cy="104" r="14" fill="#24495a" opacity="0.92"></circle>
             <circle id="minuteHandle" class="drag-target" cx="180" cy="66" r="12" fill="#d85c3a" opacity="0.94"></circle>
@@ -325,6 +340,14 @@ def interactive_clock_html() -> str:
                 x: cx + Math.cos(rad) * length,
                 y: cy + Math.sin(rad) * length
             };
+        }
+
+        function handPoints(angle, length, baseWidth) {
+            const tip = point(angle, length);
+            const back = point(angle + 180, baseWidth * 0.85);
+            const left = point(angle - 90, baseWidth);
+            const right = point(angle + 90, baseWidth);
+            return `${tip.x},${tip.y} ${left.x},${left.y} ${back.x},${back.y} ${right.x},${right.y}`;
         }
 
         function angleFromEvent(event) {
@@ -357,10 +380,8 @@ def interactive_clock_html() -> str:
             const minuteAngle = minute * 6;
             const hp = point(hourAngle, 78);
             const mp = point(minuteAngle, 118);
-            document.getElementById("hourHand").setAttribute("x2", hp.x);
-            document.getElementById("hourHand").setAttribute("y2", hp.y);
-            document.getElementById("minuteHand").setAttribute("x2", mp.x);
-            document.getElementById("minuteHand").setAttribute("y2", mp.y);
+            document.getElementById("hourHand").setAttribute("points", handPoints(hourAngle, 82, 12));
+            document.getElementById("minuteHand").setAttribute("points", handPoints(minuteAngle, 122, 7));
             document.getElementById("hourHandle").setAttribute("cx", hp.x);
             document.getElementById("hourHandle").setAttribute("cy", hp.y);
             document.getElementById("minuteHandle").setAttribute("cx", mp.x);
