@@ -248,6 +248,18 @@ def interactive_clock_html() -> str:
             font-size: 14px;
             line-height: 1.45;
         }
+        .clock-meta {
+            margin-top: 4px;
+            color: #48636e;
+            font-size: 16px;
+            font-weight: 700;
+        }
+        .button-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
         .drag-target {
             cursor: grab;
             touch-action: none;
@@ -276,9 +288,14 @@ def interactive_clock_html() -> str:
         <div class="toolbar">
             <div>
                 <div class="readout" id="clockReadout">3:20</div>
+                <div class="clock-meta" id="clockMeta">AM 上午，24 小時制：03:20</div>
                 <div class="hint">拖拉紅色長針改分鐘；分針跨過 12 時，短針會自動進位或退位。</div>
             </div>
-            <button id="resetClock" type="button">回到 3:20</button>
+            <div class="button-row">
+                <button id="togglePeriod" type="button">切換 AM/PM</button>
+                <button id="randomClock" type="button">隨機時間</button>
+                <button id="resetClock" type="button">回到 3:20 AM</button>
+            </div>
         </div>
         <svg id="clockSvg" viewBox="0 0 360 360" aria-label="可拖拉時鐘">
             <circle cx="180" cy="180" r="162" fill="#fffdf8" stroke="#2f5f72" stroke-width="8"></circle>
@@ -298,6 +315,7 @@ def interactive_clock_html() -> str:
         const cy = 180;
         let hour = 3;
         let minute = 20;
+        let period = "AM";
         let dragging = null;
         let lastMinute = minute;
 
@@ -323,6 +341,17 @@ def interactive_clock_html() -> str:
             return hour === 0 ? 12 : hour;
         }
 
+        function periodText() {
+            return period === "AM" ? "上午" : "下午";
+        }
+
+        function hour24() {
+            if (period === "AM") {
+                return hour === 0 ? 0 : hour;
+            }
+            return hour === 0 ? 12 : hour + 12;
+        }
+
         function updateClock() {
             const hourAngle = (hour + minute / 60) * 30;
             const minuteAngle = minute * 6;
@@ -337,7 +366,9 @@ def interactive_clock_html() -> str:
             document.getElementById("minuteHandle").setAttribute("cx", mp.x);
             document.getElementById("minuteHandle").setAttribute("cy", mp.y);
             document.getElementById("clockReadout").textContent =
-                `${displayHour()}:${String(minute).padStart(2, "0")}`;
+                `${displayHour()}:${String(minute).padStart(2, "0")} ${period}`;
+            document.getElementById("clockMeta").textContent =
+                `${period} ${periodText()}，24 小時制：${String(hour24()).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
         }
 
         function makeClockFace() {
@@ -412,9 +443,21 @@ def interactive_clock_html() -> str:
             dragging = null;
             lastMinute = minute;
         });
+        document.getElementById("togglePeriod").addEventListener("click", () => {
+            period = period === "AM" ? "PM" : "AM";
+            updateClock();
+        });
+        document.getElementById("randomClock").addEventListener("click", () => {
+            hour = Math.floor(Math.random() * 12);
+            minute = Math.floor(Math.random() * 12) * 5;
+            period = Math.random() < 0.5 ? "AM" : "PM";
+            lastMinute = minute;
+            updateClock();
+        });
         document.getElementById("resetClock").addEventListener("click", () => {
             hour = 3;
             minute = 20;
+            period = "AM";
             lastMinute = minute;
             updateClock();
         });
@@ -887,6 +930,7 @@ with time_tab:
             st.markdown("#### 指針怎麼看")
             st.write("直接拖拉紅色長針，可以改變分鐘。")
             st.write("直接拖拉藍色短針，可以改變小時。")
+            st.write("按「隨機時間」可以抽一個時間，讓學生練習讀出 AM/PM 和 24 小時制。")
             st.markdown(
                 """
                 <div class="formula">
@@ -898,6 +942,38 @@ with time_tab:
                 unsafe_allow_html=True,
             )
             st.info("拖一拖，再請學生說出現在是幾點幾分。")
+
+    st.subheader("AM / PM 教學")
+    ampm_col, example_col = st.columns([1, 1])
+    with ampm_col:
+        with st.container(border=True):
+            st.markdown("#### AM 是上午")
+            st.write("AM 從午夜 12:00 到中午 11:59。")
+            st.markdown(
+                """
+                <div class="formula">
+                    <span class="chip">12:00 AM = 00:00</span>
+                    <span class="chip">7:30 AM = 07:30</span>
+                    <span class="chip">11:59 AM = 11:59</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    with example_col:
+        with st.container(border=True):
+            st.markdown("#### PM 是下午和晚上")
+            st.write("PM 從中午 12:00 到晚上 11:59。")
+            st.markdown(
+                """
+                <div class="formula">
+                    <span class="chip">12:00 PM = 12:00</span>
+                    <span class="chip">3:20 PM = 15:20</span>
+                    <span class="chip">11:45 PM = 23:45</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
     st.subheader("經過時間")
     start_col, result_col = st.columns([1.05, 1])
