@@ -250,8 +250,8 @@ def interactive_clock_html() -> str:
             flex-wrap: wrap;
             margin-bottom: 8px;
         }
-        .readout {
-            font-size: 32px;
+        .period-status {
+            font-size: 22px;
             font-weight: 800;
             color: #24495a;
         }
@@ -259,12 +259,6 @@ def interactive_clock_html() -> str:
             color: #607882;
             font-size: 14px;
             line-height: 1.45;
-        }
-        .clock-meta {
-            margin-top: 4px;
-            color: #48636e;
-            font-size: 16px;
-            font-weight: 700;
         }
         .button-row {
             display: flex;
@@ -302,8 +296,7 @@ def interactive_clock_html() -> str:
     <div class="panel">
         <div class="toolbar">
             <div>
-                <div class="readout" id="clockReadout">3:20</div>
-                <div class="clock-meta" id="clockMeta">AM 上午，24 小時制：03:20</div>
+                <div class="period-status" id="periodStatus" aria-live="polite">時段：AM 上午</div>
                 <div class="hint">拖拉紅色長針改分鐘；分針跨過 12 時，短針會自動進位或退位。</div>
             </div>
             <div class="button-row">
@@ -360,19 +353,8 @@ def interactive_clock_html() -> str:
             return deg;
         }
 
-        function displayHour() {
-            return hour === 0 ? 12 : hour;
-        }
-
         function periodText() {
             return period === "AM" ? "上午" : "下午";
-        }
-
-        function hour24() {
-            if (period === "AM") {
-                return hour === 0 ? 0 : hour;
-            }
-            return hour === 0 ? 12 : hour + 12;
         }
 
         function updateClock() {
@@ -386,10 +368,8 @@ def interactive_clock_html() -> str:
             document.getElementById("hourHandle").setAttribute("cy", hp.y);
             document.getElementById("minuteHandle").setAttribute("cx", mp.x);
             document.getElementById("minuteHandle").setAttribute("cy", mp.y);
-            document.getElementById("clockReadout").textContent =
-                `${displayHour()}:${String(minute).padStart(2, "0")} ${period}`;
-            document.getElementById("clockMeta").textContent =
-                `${period} ${periodText()}，24 小時制：${String(hour24()).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+            document.getElementById("periodStatus").textContent =
+                `時段：${period} ${periodText()}`;
         }
 
         function makeClockFace() {
@@ -951,7 +931,7 @@ with time_tab:
             st.markdown("#### 指針怎麼看")
             st.write("直接拖拉紅色長針，可以改變分鐘。")
             st.write("直接拖拉藍色短針，可以改變小時。")
-            st.write("按「隨機時間」可以抽一個時間，讓學生練習讀出 AM/PM 和 24 小時制。")
+            st.write("按「隨機時間」可以抽一個時間，讓學生練習看指針讀出時間與 AM/PM。")
             st.markdown(
                 """
                 <div class="formula">
